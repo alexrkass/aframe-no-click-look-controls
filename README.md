@@ -27,20 +27,20 @@ Intuitive look controls for desktop 3D experiences with [A-Frame](aframe.io).
   <body>
     <a-scene>
       <!-- ... -->
-      <a-entity camera no-click-look-controls></a-entity>
+      <a-entity camera no-click-look-controls.js></a-entity>
     </a-scene>
   </body>
 </html>
 ```
 ####NPM
 
-Install NPM module.
+Install module using CLI.
 
 ```
 $ npm install no-click-look-controls
 ```
 
-Register `aframe-no-click-look-controls` component.
+Register component in Javascript.
 
 ```javascript
 var AFRAME = require('aframe-core');
