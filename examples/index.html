@@ -20,9 +20,9 @@
     <script src="./bundle.js"></script>
   </head>
   <body>
-<!--     <h1>No-Click-Look-Controls</h1>
- -->    <a-scene>
-      <a-entity camera="fov:80" no-click-look-controls wasd-controls cursor-color="#33CCFF">
+     <h1>No-Click-Look-Controls</h1>
+    <a-scene>
+      <a-entity camera="fov:80" no-click-look-controls="maxpitch: 1.57; maxyaw: 3.14" wasd-controls cursor-color="#33CCFF">
         <a-entity cursor position="0 0 -50" geometry="primitive:ring" material="color:white;shader:flat"></a-entity>
       </a-entity>
       <a-entity geometry="primitive:box" position="20 0 0"></a-entity>
@@ -31,10 +31,10 @@
       <a-entity geometry="primitive: sphere" position="0 0 -20"></a-entity>
     </a-scene>
 
-<!--     <div class="github-fork-ribbon-wrapper right">
+    <div class="github-fork-ribbon-wrapper right">
       <div class="github-fork-ribbon" style="background: #3482AA">
         <a href="https://github.com/alexrkass/aframe-no-click-look-controls">Fork me on GitHub</a>
       </div>
-    </div> -->
+    </div>
   </body>
 </html>
