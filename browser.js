@@ -7,7 +7,7 @@
 
   // Register all components here.
   var components = {
-    example: require('./index').component
+    "no-click-look-controls": require('./index').component
   };
 
   Object.keys(components).forEach(function (name) {

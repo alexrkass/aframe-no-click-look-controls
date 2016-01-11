@@ -1,75 +1,70 @@
-## aframe-component-boilerplate
+# A-Frame `no-click-look-controls` Component
 
-Boilerplate for creating and sharing [A-Frame](https://aframe.io) VR
-[components](https://aframe.io/docs/core/component.html).
+##Overview
+Intuitive look controls for desktop 3D experiences with [A-Frame](aframe.io).
 
-Note this refers to A-Frame components of the [entity-component
-system](https://en.wikipedia.org/wiki/Entity_component_system), and not Web
-Components.
+##Demo:
+[https://alexrkass.github.io/no-click-example/](https://alexrkass.github.io/no-click-example/)
 
-The boilerplate comes with a stub component, test suite, examples
-infrastructure with [Github pages](https://pages.github.com/), and stubbed
-README, which begins below.
+##Features
+* :no_entry_sign::arrow_left::arrow_right::no_entry_sign: Dynamically set maximum yaw and pitch (see options) to control sensitivity and max turn angles.
+* :computer: Provides intuitive desktop view controls without requiring mousedown+drag.
+* :sunglasses::iphone::100: Includes the core touch and HMD view controls for drop-in replacement of core `look-controls` component.
 
-A path to using the boilerplate:
 
-- Rename all instances of `example` and `Example` to your component name.
-- Write your component.
-- Write your unit tests.
-- Build examples (`npm run dev` to watch for changes to build example bundles).
-- Clean up this README.
-- Check `browser.js` and see if components are required and registered correctly. `browser.js`
-- is used to generate `dist` files.
-- Publish to NPM (`npm publish`). This will also generate a browser distribution to commit.
-- Publish examples to Github pages (`npm run ghpages`).
-- Share your component on [Slack](http://aframevr.slack.com/) and [awesome-aframe](https://github.com/aframevr/awesome-aframe)!
 
-Example usage of the boilerplate:
+##Usage
+####Script
+```html
+<html>
+  <head>
+    <!-- A-Frame Library -->
+    <script src="https://aframe.io/releases/latest/aframe.js"></script>
 
-- [aframe-layout-component](https://github.com/ngokevin/aframe-layout-component)
-- [aframe-text-component](https://github.com/ngokevin/aframe-text-component)
-- [aframe-extrude-and-lathe](https://github.com/JosePedroDias/aframe-extrude-and-lathe)
+    <!-- Component -->
+    <script src="dist/aframe-no-click-look-controls"></script>
+  </head>
+  <body>
+    <a-scene>
+      <!-- ... -->
+      <a-entity camera no-click-look-controls></a-entity>
+    </a-scene>
+  </body>
+</html>
+```
+####NPM
 
-## aframe-example-component
+Install NPM module.
 
-An example component for [A-Frame](https://aframe.io) VR.
+```
+$ npm install no-click-look-controls
+```
 
-### Usage
+Register `aframe-no-click-look-controls` component.
 
-#### Browser Installation
+```javascript
+var AFRAME = require('aframe-core');
+var NoClickLookControls = require('aframe-no-click-look-controls');
+AFRAME.registerComponent('no-click-look-controls', NoClickLookControls);
+```
 
-Install and use by directly including the [browser files](dist):
+Add markup.
 
 ```html
-<head>
-  <title>My A-Frame Scene</title>
-  <script src="https://aframe.io/releases/latest/aframe.min.js"></script>
-  <script src="https://github.com/ngokevin/aframe-component-boilerplate/blob/master/dist/aframe-example-component.min.js"></script>
-</head>
-
-<body>
-  <a-scene>
-    <a-entity example="exampleProp: exampleVal"></a-entity>
-  </a-scene>
-</body>
+<a-entity camera no-click-look-controls></a-entity>
 ```
 
-#### NPM Installation
+##Options
 
-Install via NPM:
+(units are radians)
 
-```bash
-npm install aframe-example-component
+Property      | Default | Description
+--------------|---------|-------------
+maxyaw        | 3π      | Controls the max y-axis rotation. Actual max viewing angle is twice the parameter, ie 3π is 3π to the right and 3π to the left.
+maxpitch      | π/2     | Controls the max x-axis rotation. Actual max viewing angle is twice the parameter, ie π/2 is π/2 up and π/2 down.
+enabled       | true    | Enables controls
+
+######Example Options
+```html
+<a-entity camera no-click-look-controls="maxyaw: 3.14; maxpitch: 0"></a-entity>
 ```
-
-Then register and use.
-
-```js
-var AFRAME = require('aframe-core');
-var exampleComponent = require('aframe-example-component').component;
-AFRAME.registerComponent('example', exampleComponent);
-```
-
-| Property | Description | Default Value |
-| -------- | ----------- | ------------- |
-|          |             |               |

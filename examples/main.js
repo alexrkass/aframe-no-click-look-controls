@@ -1,3 +1,3 @@
 var AFRAME = require('aframe-core');
-var exampleComponent = require('../index.js').component;
-AFRAME.registerComponent('example', exampleComponent);
+var noClickLookControls = require('../index.js').component;
+AFRAME.registerComponent('no-click-look-controls', noClickLookControls);

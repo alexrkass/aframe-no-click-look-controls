@@ -4,8 +4,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-fork-ribbon-css/0.1.1/gh-fork-ribbon.min.css"/>
     <style>
       html {
-        background: #EF2D5E;
-        color: #FAFAFA;
         font-family: monospace;
         font-size: 20px;
         padding: 10px 20px;
@@ -19,15 +17,23 @@
         padding: 15px 0;
       }
     </style>
+    <script src="build.js"></script>
   </head>
   <body>
-    <h1>A-Frame Example Component</h1>
-    <a href="basic/index.html">Basic</a>
+<!--     <h1>No-Click-Look-Controls</h1>
+ -->    <a-scene>
+      <a-entity camera="fov:80" no-click-look-controls wasd-controls cursor-color="#33CCFF">
+        <a-entity cursor position="0 0 -50" geometry="primitive:ring" material="color:white;shader:flat"></a-entity>
+      </a-entity>
+      <a-entity geometry="primitive:box" position="20 0 0"></a-entity>
+      <a-entity geometry="primitive:cylinder" position="0 0 20"></a-entity>
+      <a-sky src="background.jpg"></a-sky>
+    </a-scene>
 
-    <div class="github-fork-ribbon-wrapper right">
+<!--     <div class="github-fork-ribbon-wrapper right">
       <div class="github-fork-ribbon" style="background: #3482AA">
-        <a href="https://github.com/ngokevin/aframe-component-boilerplate">Fork me on GitHub</a>
+        <a href="https://github.com/alexrkass/aframe-no-click-look-controls">Fork me on GitHub</a>
       </div>
-    </div>
+    </div> -->
   </body>
 </html>
