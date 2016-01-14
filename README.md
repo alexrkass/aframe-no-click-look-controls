@@ -68,3 +68,5 @@ enabled       | true    | Enables controls
 * add option to slow down camera rotation as the mouse gets closer to the edge of the canvas
 
 * write tests
+
+* add a tiny touch of motion smoothing
