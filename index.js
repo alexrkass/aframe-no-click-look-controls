@@ -1,5 +1,5 @@
-var registerComponent = require('./node_modules/aframe-core/src/core/component').registerComponent;
-var THREE = require('./node_modules/aframe-core/lib/three');
+var registerComponent = require('../aframe-core/src/core/component').registerComponent;
+var THREE = require('./../aframe-core/lib/three');
 
 // To avoid recalculation at every mouse movement tick
 var PI_2 = Math.PI / 2;
