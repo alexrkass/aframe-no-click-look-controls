@@ -1,6 +1,6 @@
 {
   "name": "aframe-no-click-look-controls",
-  "version": "1.0.1",
+  "version": "1.0.4",
   "description": "Intuitive controls for desktop A-frame experiences",
   "main": "index.js",
   "scripts": {

@@ -1,233 +1,4 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-// Browser distribution of the A-Frame component.
-(function () {
-  if (typeof AFRAME === 'undefined') {
-    console.error('Component attempted to register before AFRAME was available.');
-    return;
-  }
-
-  // Register all components here.
-  var components = {
-    "no-click-look-controls": require('./index').component
-  };
-
-  Object.keys(components).forEach(function (name) {
-    if (AFRAME.aframeCore) {
-      AFRAME.aframeCore.registerComponent(name, components[name]);
-    } else {
-      AFRAME.registerComponent(name, components[name]);
-    }
-  });
-})();
-
-},{"./index":2}],2:[function(require,module,exports){
-var registerComponent = require('./node_modules/aframe-core/src/core/component').registerComponent;
-var THREE = require('./node_modules/aframe-core/lib/three');
-
-// To avoid recalculation at every mouse movement tick
-var PI_2 = Math.PI / 2;
-
-module.exports.component = {
-  dependencies: ['position', 'rotation'],
-  schema: {
-    enabled: { default: true },
-    maxpitch: {default: PI_2},
-    maxyaw: {default: PI_2 * 6},
-  },
-
-  /**
-   * Called once when component is attached. Generally for initial setup.
-   */
-  init: function () {
-    var scene = this.el.sceneEl;
-    this.setupMouseControls();
-    this.setupHMDControls();
-    this.attachEventListeners();
-    scene.addBehavior(this);
-    this.previousPosition = new THREE.Vector3();
-    this.deltaPosition = new THREE.Vector3();
-  },
-
-  setupMouseControls: function () {
-    this.canvasEl = document.querySelector('a-scene').canvas;
-    // The canvas where the scene is painted
-    this.hovering = false;
-    this.pitchObject = new THREE.Object3D();
-    this.yawObject = new THREE.Object3D();
-    this.yawObject.position.y = 10;
-    this.yawObject.add(this.pitchObject);
-  },
-
-  setupHMDControls: function () {
-    this.dolly = new THREE.Object3D();
-    this.euler = new THREE.Euler();
-    this.controls = new THREE.VRControls(this.dolly);
-    this.zeroQuaternion = new THREE.Quaternion();
-  },
-
-  attachEventListeners: function () {
-    var canvasEl = document.querySelector('a-scene').canvas;
-
-    // Mouse Events
-    canvasEl.addEventListener('mousemove', this.onMouseMove.bind(this), true);
-    canvasEl.addEventListener('mouseout', this.onMouseOut.bind(this), true);
-    canvasEl.addEventListener('mouseover', this.onMouseOver.bind(this), true);
-    // Touch events
-    canvasEl.addEventListener('touchstart', this.onTouchStart.bind(this));
-    canvasEl.addEventListener('touchmove', this.onTouchMove.bind(this));
-    canvasEl.addEventListener('touchend', this.onTouchEnd.bind(this));
-  },
-
-  update: function () {
-    if (!this.data.enabled) { return; }
-    this.controls.update();
-    this.updateOrientation();
-    this.updatePosition();
-  },
-
-  updateOrientation: (function () {
-    var hmdEuler = new THREE.Euler();
-    hmdEuler.order = 'YXZ';
-    return function () {
-      var pitchObject = this.pitchObject;
-      var yawObject = this.yawObject;
-      var hmdQuaternion = this.calculateHMDQuaternion();
-      hmdEuler.setFromQuaternion(hmdQuaternion);
-      this.el.setAttribute('rotation', {
-        x: THREE.Math.radToDeg(hmdEuler.x) + THREE.Math.radToDeg(pitchObject.rotation.x),
-        y: THREE.Math.radToDeg(hmdEuler.y) + THREE.Math.radToDeg(yawObject.rotation.y),
-        z: THREE.Math.radToDeg(hmdEuler.z)
-      });
-    };
-  })(),
-
-  calculateHMDQuaternion: (function () {
-    var hmdQuaternion = new THREE.Quaternion();
-    return function () {
-      var dolly = this.dolly;
-      if (!this.zeroed && !dolly.quaternion.equals(this.zeroQuaternion)) {
-        this.zeroOrientation();
-        this.zeroed = true;
-      }
-      hmdQuaternion.copy(this.zeroQuaternion).multiply(dolly.quaternion);
-      return hmdQuaternion;
-    };
-  })(),
-
-  updatePosition: (function () {
-    var position = new THREE.Vector3();
-    var quaternion = new THREE.Quaternion();
-    var scale = new THREE.Vector3();
-    return function () {
-      var el = this.el;
-      var deltaPosition = this.calculateDeltaPosition();
-      var currentPosition = el.getComputedAttribute('position');
-      this.el.object3D.matrixWorld.decompose(position, quaternion, scale);
-      deltaPosition.applyQuaternion(quaternion);
-      el.setAttribute('position', {
-        x: currentPosition.x + deltaPosition.x,
-        y: currentPosition.y + deltaPosition.y,
-        z: currentPosition.z + deltaPosition.z
-      });
-    };
-  })(),
-
-  calculateDeltaPosition: function () {
-    var dolly = this.dolly;
-    var deltaPosition = this.deltaPosition;
-    var previousPosition = this.previousPosition;
-    deltaPosition.copy(dolly.position);
-    deltaPosition.sub(previousPosition);
-    previousPosition.copy(dolly.position);
-    return deltaPosition;
-  },
-
-  updateHMDQuaternion: (function () {
-    var hmdQuaternion = new THREE.Quaternion();
-    return function () {
-      var dolly = this.dolly;
-      this.controls.update();
-      if (!this.zeroed && !dolly.quaternion.equals(this.zeroQuaternion)) {
-        this.zeroOrientation();
-        this.zeroed = true;
-      }
-      hmdQuaternion.copy(this.zeroQuaternion).multiply(dolly.quaternion);
-      return hmdQuaternion;
-    };
-  })(),
-
-  zeroOrientation: function () {
-    var euler = new THREE.Euler();
-    euler.setFromQuaternion(this.dolly.quaternion.clone().inverse());
-    // Cancel out roll and pitch. We want to only reset yaw
-    euler.z = 0;
-    euler.x = 0;
-    this.zeroQuaternion.setFromEuler(euler);
-  },
-
-  getMousePosition: function(event, canvasEl) {
-
-    var rect = canvasEl.getBoundingClientRect();
-
-    // Returns a value from -1 to 1 for X and Y representing the percentage of the max-yaw and max-pitch from the center of the canvas
-    // -1 is far left or top, 1 is far right or bottom
-    return {x: -2*(.5 - (event.clientX - rect.left)/rect.width), y: -2*(.5 - (event.clientY - rect.top)/rect.height)};
-  },
-
-  onMouseMove: function (event) {
-    var pos = this.getMousePosition(event, this.canvasEl);
-    var x = pos.x;
-    var y = pos.y;
-
-    var pitchObject = this.pitchObject;
-    var yawObject = this.yawObject;
-
-    if (!this.hovering || !this.data.enabled) { return; }
-    yawObject.rotation.y = this.data.maxyaw * -x;
-    pitchObject.rotation.x = this.data.maxpitch * -y;
-  },
-
-  onMouseOver: function (event) {
-    this.hovering = true;
-  },
-
-  onMouseOut: function (event) {
-    this.hovering = false;
-  },
-
-  onTouchStart: function (e) {
-    if (e.touches.length !== 1) { return; }
-    this.touchStart = {
-      x: e.touches[0].pageX,
-      y: e.touches[0].pageY
-    };
-    this.touchStarted = true;
-  },
-
-  onTouchMove: function (e) {
-    var deltaY;
-    var yawObject = this.yawObject;
-    if (!this.touchStarted) { return; }
-    deltaY = 2 * Math.PI * (e.touches[0].pageX - this.touchStart.x) / this.canvasEl.clientWidth;
-    // Limits touch orientaion to to yaw (y axis)
-    yawObject.rotation.y -= deltaY * 0.5;
-    this.touchStart = {
-      x: e.touches[0].pageX,
-      y: e.touches[0].pageY
-    };
-  },
-
-  onTouchEnd: function () {
-    this.touchStarted = false;
-  },
-  /**
-   * Called when a component is removed (e.g., via removeAttribute).
-   * Generally undoes all modifications to the entity.
-   */
-  remove: function () { }
-};
-
-},{"./node_modules/aframe-core/lib/three":3,"./node_modules/aframe-core/src/core/component":9}],3:[function(require,module,exports){
 var THREE = require('three-dev');
 
 // Allow cross-origin images to be loaded.
@@ -244,7 +15,7 @@ THREE.VREffect = require('../lib/vendor/VREffect');
 
 module.exports = THREE;
 
-},{"../lib/vendor/ColladaLoader":4,"../lib/vendor/OBJLoader":5,"../lib/vendor/Raycaster":6,"../lib/vendor/VRControls":7,"../lib/vendor/VREffect":8,"three-dev":21}],4:[function(require,module,exports){
+},{"../lib/vendor/ColladaLoader":2,"../lib/vendor/OBJLoader":3,"../lib/vendor/Raycaster":4,"../lib/vendor/VRControls":5,"../lib/vendor/VREffect":6,"three-dev":12}],2:[function(require,module,exports){
 /**
 * @author Tim Knip / http://www.floorplanner.com/ / tim at floorplanner.com
 * @author Tony Parisi / http://www.tonyparisi.com/
@@ -5826,7 +5597,7 @@ module.exports = function (THREE) {
 
 };
 
-},{}],5:[function(require,module,exports){
+},{}],3:[function(require,module,exports){
 /**
  * @author mrdoob / http://mrdoob.com/
  */
@@ -6216,7 +5987,7 @@ module.exports = function (THREE) {
 
 }
 
-},{}],6:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 /**
  * @author mrdoob / http://mrdoob.com/
  * @author bhouston / http://exocortex.com/
@@ -6347,7 +6118,7 @@ module.exports = function (THREE) {
 
 };
 
-},{}],7:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 /**
  * @author dmarcos / https://github.com/dmarcos
  * @author mrdoob / http://mrdoob.com
@@ -6470,7 +6241,7 @@ module.exports = function ( object, onError ) {
 
 };
 
-},{"three-dev":21}],8:[function(require,module,exports){
+},{"three-dev":12}],6:[function(require,module,exports){
 /**
  * @author dmarcos / https://github.com/dmarcos
  * @author mrdoob / http://mrdoob.com
@@ -6719,810 +6490,7 @@ module.exports = function ( renderer, onError ) {
 
 };
 
-},{"three-dev":21}],9:[function(require,module,exports){
-var debug = require('../utils/debug');
-var styleParser = require('style-attr');
-var utils = require('../utils/');
-
-var components = module.exports.components = {};  // Keep track of registered components.
-var error = debug('core:register-component:error');
-
-/**
- * Component class definition.
- *
- * Components configure appearance, modify behavior, or add functionality to
- * entities. The behavior and appearance of an entity can be changed at runtime
- * by adding, removing, or updating components. Entities do not share instances
- * of components.
- *
- * @namespace Component
- * @property {object} data - Stores component data, populated by parsing the
- *           attribute name of the component plus applying defaults and mixins.
- * @property {object} el - Reference to the entity element.
- * @property {string} name - Name of the attribute the component is connected
- *           to.
- * @member {Element} el
- * @member {object} data
- * @member {function} getData
- * @member {function} init
- * @member {function} update
- * @member {function} remove
- * @member {function} parse
- * @member {function} stringify
- */
-var Component = module.exports.Component = function (el) {
-  var attrs = el.getAttribute(this.name);
-  this.el = el;
-  this.data = {};
-  this.parseAttributes(attrs);
-  this.init();
-  this.update();
-};
-
-Component.prototype = {
-  /**
-   * Contains the type schema and defaults for the data values.
-   * Data is coerced into the types of the values of the defaults.
-   */
-  schema: {},
-
-  /**
-   * Init handler. Similar to attachedCallback.
-   * Called during component initialization and is only run once.
-   * Components can use this to set initial state.
-   */
-  init: function () { /* no-op */ },
-
-  /**
-   * Update handler. Similar to attributeChangedCallback.
-   * Called whenever component's data changes.
-   * Also called on component initialization when the component receives initial data.
-   *
-   * @param {object} previousData - Previous attributes of the component.
-   */
-  update: function (previousData) { /* no-op */ },
-
-  /**
-   * Remove handler. Similar to detachedCallback.
-   * Called whenever component is removed from the entity (i.e., removeAttribute).
-   * Components can use this to reset behavior on the entity.
-   */
-  remove: function () { /* no-op */ },
-
-  /**
-   * Describes how the component should deserialize HTML attribute into data.
-   * Can be overridden by the component.
-   *
-   * The default parsing is parsing style-like strings, camelCasing keys for
-   * error-tolerance (`max-value` ~= `maxValue`).
-   *
-   * @param {string} value - HTML attribute.
-   * @returns {object} Data.
-   */
-  parse: function (value) {
-    if (typeof value !== 'string') { return value; }
-    return transformKeysToCamelCase(styleParser.parse(value));
-  },
-
-  /**
-   * Describes how the component should serialize data to a string to update the DOM.
-   * Can be overridden by the component.
-   *
-   * The default stringify is to a style-like string.
-   *
-   * @param {object} data
-   * @returns {string}
-   */
-  stringify: function (data) {
-    if (typeof data !== 'object') { return data; }
-    return styleParser.stringify(data);
-  },
-
-  /**
-   * Returns a copy of data such that we don't expose the private this.data.
-   *
-   * @returns {object} data
-   */
-  getData: function () {
-    var data = this.data;
-    if (typeof data !== 'object') { return data; }
-    return utils.extend({}, data);
-  },
-
-  /**
-   * Called when new data is coming from the entity (e.g., attributeChangedCb)
-   * or from its mixins. Does some parsing and applying before updating the
-   * component.
-   * Does not update if data has not changed.
-   */
-  updateAttributes: function (newData) {
-    var previousData = extendWithCheck({}, this.data);
-    this.parseAttributes(newData);
-    // Don't update if properties haven't changed
-    if (utils.deepEqual(previousData, this.data)) { return; }
-    this.update(previousData);
-    this.el.emit('componentchanged', {
-      name: this.name,
-      newData: this.getData(),
-      oldData: previousData
-    });
-  },
-
-  /**
-   * Builds component data from the current state of the entity, ultimately
-   * updating this.data.
-   *
-   * If the component was detached completely, set data to null.
-   *
-   * Precedence:
-   * 1. Defaults data
-   * 2. Mixin data.
-   * 3. Attribute data.
-   * Finally coerce the data to the types of the defaults.
-   */
-  parseAttributes: function (newData) {
-    var self = this;
-    var data = {};
-    var schema = self.schema;
-    var el = self.el;
-    var mixinEls = el.mixinEls;
-    var name = self.name;
-
-    // 1. Default values (lowest precendence).
-    Object.keys(schema).forEach(applyDefault);
-    function applyDefault (key) {
-      data[key] = schema[key].default;
-    }
-
-    // 2. Mixin values.
-    mixinEls.forEach(applyMixin);
-    function applyMixin (mixinEl) {
-      var mixinData = mixinEl.getAttribute(name);
-      data = extendWithCheck(data, mixinData);
-    }
-
-    // 3. Attribute values (highest precendence).
-    data = extendWithCheck(data, newData);
-
-    // Coerce to the type of the defaults.
-    this.data = utils.coerce(data, schema);
-  }
-};
-
-/**
- * Registers a component to A-Frame.
- *
- * @param {string} name - Component name.
- * @param {object} definition - Component property and methods.
- * @returns {object} Component.
- */
-module.exports.registerComponent = function (name, definition) {
-  var NewComponent;
-  var proto = {};
-
-  // Format definition object to prototype object.
-  Object.keys(definition).forEach(function (key) {
-    proto[key] = {
-      value: definition[key],
-      writable: window.debug
-    };
-  });
-
-  if (components[name]) {
-    error('The component "' + name + '" has been already registered');
-  }
-  NewComponent = function (el) {
-    Component.call(this, el);
-  };
-  NewComponent.prototype = Object.create(Component.prototype, proto);
-  NewComponent.prototype.name = name;
-  NewComponent.prototype.constructor = NewComponent;
-  components[name] = {
-    Component: NewComponent,
-    dependencies: NewComponent.prototype.dependencies,
-    parse: NewComponent.prototype.parse.bind(NewComponent.prototype),
-    schema: NewComponent.prototype.schema,
-    stringify: NewComponent.prototype.stringify.bind(NewComponent.prototype)
-  };
-  return NewComponent;
-};
-
-/**
-* Object extending, but checks if `source` is an object first.
-* If not, `source` is a primitive and we don't do any extending.
-*
-* @param dest - Destination object or value.
-* @param source - Source object or value
-* @returns Overridden object or value.
-*/
-function extendWithCheck (dest, source) {
-  var isSourceObject = typeof source === 'object';
-  if (source === null) { return dest; }
-  if (!isSourceObject) {
-    if (source === undefined) { return dest; }
-    return source;
-  }
-  return utils.extend(dest, source);
-}
-
-/**
- * Converts string from hyphen to camelCase.
- *
- * @param {string} str - String to camelCase.
- * @return {string} CamelCased string.
- */
-function toCamelCase (str) {
-  return str.replace(/-([a-z])/g, camelCase);
-  function camelCase (g) { return g[1].toUpperCase(); }
-}
-
-/**
- * Converts object's keys from hyphens to camelCase (e.g., `max-value` to
- * `maxValue`).
- *
- * @param {object} obj - The object to camelCase keys.
- * @return {object} The object with keys camelCased.
- */
-function transformKeysToCamelCase (obj) {
-  var keys = Object.keys(obj);
-  var camelCaseObj = {};
-  keys.forEach(function (key) {
-    var camelCaseKey = toCamelCase(key);
-    camelCaseObj[camelCaseKey] = obj[key];
-  });
-  return camelCaseObj;
-}
-
-},{"../utils/":13,"../utils/debug":12,"style-attr":20}],10:[function(require,module,exports){
-var coordinates = require('./coordinates');
-var utils = require('./index');
-
-/**
- * If `value` is object, coerce values of `val` into types defined by `schema`.
- * If `value` is string and `schemaAttr` defined, coerces `value` into the value in `schema`
- * pointed to by `schemaAttr`.
- *
- * @param {object|string} value - value(s) to coerce.
- * @param {object} schema - Object which values will be used to coerce to.
- * @param {string} schemaAttr -
- *   In case `value` is a string, `schemaAttr` signifies which value in `schema` to coerce to.
- * @returns Coerced value or object.
- */
-module.exports = function (value, schema, schemaAttr) {
-  var obj = value;
-
-  // Batch coerce.
-  if (typeof value === 'object') {
-    Object.keys(obj).forEach(function (key) {
-      var attrSchema = schema[key];
-      var schemaValue;
-      if (!attrSchema) {
-        utils.warn('Unknown component attribute: ' + key);
-        return;
-      }
-      schemaValue = attrSchema.default;
-      if (schemaValue === undefined) { return; }
-      obj[key] = coerceValue(obj[key], schemaValue);
-    });
-    return obj;
-  }
-
-  // Handle case: string.
-  return coerceValue(value, schema.default);
-
-  function coerceValue (value, targetValue) {
-    if (typeof value !== 'string') { return value; }
-
-    switch (typeof targetValue) {
-      case 'boolean':
-        return value === 'true';
-      case 'number':
-        return parseFloat(value);
-      case 'object':
-        if (utils.deepEqual(Object.keys(targetValue), ['x', 'y', 'z'])) {
-          return coordinates.parse(value);
-        }
-        return value;
-      default:
-        return value;
-    }
-  }
-};
-
-},{"./coordinates":11,"./index":13}],11:[function(require,module,exports){
-// Coordinate string regex. Handles negative, positive, and decimals.
-var regex = /\s*(-?\d*\.{0,1}\d+)\s*(-?\d*\.{0,1}\d+)\s*(-?\d*\.{0,1}\d+)\s*/;
-module.exports.regex = regex;
-
-/**
- * Parses coordinates from an "x y z" string.
- * Example: "3 10 -5" to {x: 3, y: 10, z: -5}.
- *
- * @param {string} val - An "x y z" string.
- * @param {string} defaults - fallback value.
- * @returns {object} An object with keys [x, y, z].
- */
-function parse (value, schema) {
-  var coordinate;
-  schema = schema || {};
-  if (typeof value !== 'string' || value === null) { return value; }
-  coordinate = value.trim().replace(/\s+/g, ' ').split(' ');
-  return {
-    x: parseFloat(coordinate[0] || schema.x.default),
-    y: parseFloat(coordinate[1] || schema.y.default),
-    z: parseFloat(coordinate[2] || schema.z.default)
-  };
-}
-module.exports.parse = parse;
-
-/**
- * Stringifies coordinates from an object with keys [x y z].
- * Example: {x: 3, y: 10, z: -5} to "3 10 -5".
- *
- * @param {object|string} val - An object with keys [x y z].
- * @returns {string} An "x y z" string.
- */
-function stringify (value) {
-  if (typeof value !== 'object') { return value; }
-  return [value.x, value.y, value.z].join(' ');
-}
-module.exports.stringify = stringify;
-
-/**
- * @returns {bool}
- */
-module.exports.isCoordinate = function (value) {
-  return regex.test(value);
-};
-
-/**
- * Prototype mixin for coordinate-only components.
- */
-module.exports.componentMixin = {
-  parse: function (value) {
-    return parse(value, this.schema);
-  },
-
-  stringify: stringify
-};
-
-},{}],12:[function(require,module,exports){
-(function (process){
-var debugLib = require('debug');
-var extend = require('object-assign');
-
-var settings = {
-  colors: {
-    error: 'red',
-    info: 'gray',
-    warn: 'orange',
-    warning: 'orange'
-  }
-};
-
-/**
- * Monkeypatches `debug` so we can colorize error/warning messages.
- *
- * (See issue: https://github.com/visionmedia/debug/issues/137)
- */
-var debug = function (namespace) {
-  var d = debugLib(namespace);
-
-  d.color = getDebugNamespaceColor(namespace);
-
-  return d;
-};
-extend(debug, debugLib);
-
-/**
- * Returns the type of the namespace (e.g., `error`, `warn`).
- *
- * @param {String} namespace
- *   The debug logger's namespace (e.g., `components:geometry:warn`).
- * @returns {String} The type of the namespace (e.g., `warn`).
- * @api private
- */
-function getDebugNamespaceType (namespace) {
-  var chunks = namespace.split(':');
-
-  return chunks[chunks.length - 1];  // Return the last one
-}
-
-/**
- * Returns the color of the namespace (e.g., `orange`).
- *
- * @param {String} namespace
- *   The debug logger's namespace (e.g., `components:geometry:warn`).
- * @returns {String} The color of the namespace (e.g., `orange`).
- * @api private
- */
-function getDebugNamespaceColor (namespace) {
-  var type = getDebugNamespaceType(namespace);
-
-  var color = settings.colors && settings.colors[type];
-
-  return color || null;
-}
-
-/**
- * Returns `localStorage` if possible.
- *
- * This is necessary because Safari throws when a user disables
- * cookies or `localStorage` and you attempt to access it.
- *
- * @returns {localStorage}
- * @api private
- */
-function storage () {
-  try {
-    return window.localStorage;
-  } catch (e) {
-  }
-}
-
-/**
- * To enable console logging, type this in the Console of your Dev Tools:
- *
- *   localStorage.logs = 1
- *
- * To disable console logging:
- *
- *   localStorage.logs = 0
- *
- */
-var ls = storage();
-if (ls && (parseInt(ls.logs, 10) || ls.logs === 'true')) {
-  debug.enable('*');
-} else {
-  // We do not call `debug.disable` because it requires two reloads to take.
-  // See https://github.com/visionmedia/debug/issues/238
-  // Instead, we call `debug.save` to remove the `debug` namespaces persisted
-  // in `localStorage`.
-  debug.save(null);
-  // And then we `noop` the function so nothing happens.
-  debug = function () {
-    /* noop */
-    return function () {};
-  };
-}
-
-if (process.browser) { window.logs = debug; }
-
-module.exports = debug;
-
-}).call(this,require('_process'))
-},{"_process":19,"debug":15,"object-assign":18}],13:[function(require,module,exports){
-/* global CustomEvent, location */
-/* Centralized place to reference utilities since utils is exposed to the user. */
-var objectAssign = require('object-assign');
-
-module.exports.coerce = require('./coerce');
-module.exports.coordinates = require('./coordinates');
-
-/**
- * Fires a custom DOM event.
- *
- * @param {Element} el Element on which to fire the event.
- * @param {String} name Name of the event.
- * @param {Object=} [data={bubbles: true, {detail: <el>}}]
- *   Data to pass as `customEventInit` to the event.
- */
-module.exports.fireEvent = function (el, name, data) {
-  data = data || {};
-  data.detail = data.detail || {};
-  data.detail.target = data.detail.target || el;
-  var evt = new CustomEvent(name, data);
-  evt.target = el;
-  el.dispatchEvent(evt);
-};
-
-/**
- * Throws an error given a message.
- *
- * @param {String} msg Error message.
- */
-module.exports.error = function (msg) {
-  throw new Error(msg);
-};
-
-/**
- * Emits a console warning given passed message argument(s).
- */
-module.exports.warn = function () {
-  console.warn.apply(console, arguments);
-};
-
-/**
- * Emits a console log given passed message argument(s).
- */
-module.exports.log = function () {
-  console.log.apply(console, arguments);
-};
-
-/**
- * Mix the properties of source object(s) into a destination object.
- *
- * @param  {object} dest - The object to which properties will be copied.
- * @param  {...object} source - The object(s) from which properties will be copied.
- */
-module.exports.extend = objectAssign;
-
-/**
- * Checks if two objects have the same attributes and values, including nested objects.
- *
- * @param {object} a - First object.
- * @param {object} b - Second object.
- * @returns {boolean} Whether two objects are deeply equal.
- */
-function deepEqual (a, b) {
-  var keysA = Object.keys(a);
-  var keysB = Object.keys(b);
-  var i;
-  if (keysA.length !== keysB.length) { return false; }
-  // If there are no keys, compare the objects.
-  if (keysA.length === 0) { return a === b; }
-  for (i = 0; i < keysA.length; ++i) {
-    if (a[keysA[i]] !== b[keysA[i]]) { return false; }
-  }
-  return true;
-}
-module.exports.deepEqual = deepEqual;
-
-/**
- * Computes the difference between two objects.
- *
- * @param {object} a - First object to compare (e.g., oldData).
- * @param {object} b - Second object to compare (e.g., newData).
- * @returns {object}
- *   Difference object where set of keys note which values were not equal, and values are
- *   `b`'s values.
- */
-module.exports.diff = function (a, b) {
-  var diff = {};
-  var keys = Object.keys(a);
-  Object.keys(b).forEach(function collectKeys (bKey) {
-    if (keys.indexOf(bKey) === -1) {
-      keys.push(bKey);
-    }
-  });
-  keys.forEach(function doDiff (key) {
-    var aVal = a[key];
-    var bVal = b[key];
-    var isComparingObjects = aVal && bVal &&
-                             aVal.constructor === Object && bVal.constructor === Object;
-    if ((isComparingObjects && !deepEqual(aVal, bVal)) ||
-        (!isComparingObjects && aVal !== bVal)) {
-      diff[key] = bVal;
-    }
-  });
-  return diff;
-};
-
-/**
- * Checks if browser is mobile.
- * @return {Boolean} True if mobile browser detected.
- */
-module.exports.isMobile = function () {
-  var check = false;
-  (function (a) {
-    if (/(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino/i.test(a) || /1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s\-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|\-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw\-(n|u)|c55\/|capi|ccwa|cdm\-|cell|chtm|cldc|cmd\-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc\-s|devi|dica|dmob|do(c|p)o|ds(12|\-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(\-|_)|g1 u|g560|gene|gf\-5|g\-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd\-(m|p|t)|hei\-|hi(pt|ta)|hp( i|ip)|hs\-c|ht(c(\-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i\-(20|go|ma)|i230|iac( |\-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc\-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|\-[a-w])|libw|lynx|m1\-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m\-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(\-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)\-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|\-([1-8]|c))|phil|pire|pl(ay|uc)|pn\-2|po(ck|rt|se)|prox|psio|pt\-g|qa\-a|qc(07|12|21|32|60|\-[2-7]|i\-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h\-|oo|p\-)|sdk\/|se(c(\-|0|1)|47|mc|nd|ri)|sgh\-|shar|sie(\-|m)|sk\-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h\-|v\-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl\-|tdg\-|tel(i|m)|tim\-|t\-mo|to(pl|sh)|ts(70|m\-|m3|m5)|tx\-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|\-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(\-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas\-|your|zeto|zte\-/i.test(a.substr(0, 4))) {
-      check = true;
-    }
-    if (isIOS()) {
-      check = true;
-    }
-  })(navigator.userAgent || navigator.vendor || window.opera);
-  return check;
-};
-
-var isIOS = module.exports.isIOS = function () {
-  return /iPad|iPhone|iPod/.test(navigator.platform);
-};
-
-/**
- * Checks mobile device orientation
- * @return {Boolean} True if landscape orientation
- */
-module.exports.isLandscape = function () {
-  return window.orientation === 90 || window.orientation === -90;
-};
-
-/**
- * Splits a string into an array based on a delimiter.
- *
- * @param   {string=} [str='']        Source string
- * @param   {string=} [delimiter=' '] Delimiter to use
- * @returns {array}                   Array of delimited strings
- */
-module.exports.splitString = function (str, delimiter) {
-  if (typeof delimiter === 'undefined') { delimiter = ' '; }
-  // First collapse the whitespace (or whatever the delimiter is).
-  var regex = new RegExp(delimiter, 'g');
-  str = (str || '').replace(regex, delimiter);
-  // Then split.
-  return str.split(delimiter);
-};
-
-/**
- * Extracts data from the element given an object that contains expected keys.
- *
- * @param {Element} Source element.
- * @param {Object} [defaults={}] Object of default key-value pairs.
- * @returns {Object}
- */
-module.exports.getElData = function (el, defaults) {
-  defaults = defaults || {};
-  var data = {};
-  Object.keys(defaults).forEach(copyAttribute);
-  function copyAttribute (key) {
-    if (el.hasAttribute(key)) {
-      data[key] = el.getAttribute(key);
-    }
-  }
-  return data;
-};
-
-/**
- * Retrieves querystring value.
- * @param  {String} name Name of querystring key.
- * @return {String}      Value
- */
-module.exports.getUrlParameter = function (name) {
-  name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
-  var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
-  var results = regex.exec(location.search);
-  return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
-};
-
-// Must be at bottom to avoid circular dependency.
-module.exports.srcLoader = require('./src-loader');
-
-},{"./coerce":10,"./coordinates":11,"./src-loader":14,"object-assign":18}],14:[function(require,module,exports){
-/* global Image */
-var debug = require('./debug');
-
-var warn = debug('utils:src-loader:warn');
-
-/**
- * Validates a texture, either as a selector or as a URL.
- * Detects whether `src` is pointing to an image or to a video, and invokes the
- * appropriate callback.
- *
- * If `src` is selector, check if it's valid, return the el in the callback.
- * An el is returned so that it can be reused for texture loading.
- *
- * If `src` is a URL, check if it's valid, return the src in the callback.
- *
- * @params {string} src - A selector or a URL. URLs must be wrapped by `url()`.
- * @params {function} isImageCb - callback if texture is an image.
- * @params {function} isVideoCb - callback if texture is a video.
- */
-function validateSrc (src, isImageCb, isVideoCb) {
-  var textureEl;
-  var isImage;
-  var isVideo;
-  var url = parseUrl(src);
-
-  // src is a url.
-  if (url) {
-    validateImageUrl(url, function isAnImageUrl (isImage) {
-      if (!isImage) { isVideoCb(url); return; }
-      isImageCb(url);
-    });
-    return;
-  }
-
-  // src is a query selector.
-  textureEl = validateAndGetQuerySelector(src);
-  if (!textureEl) { return; }
-  isImage = textureEl && textureEl.tagName === 'IMG';
-  isVideo = textureEl && textureEl.tagName === 'VIDEO';
-  if (isImage) { return isImageCb(textureEl); }
-  if (isVideo) { return isVideoCb(textureEl); }
-
-  // src is a valid selector but doesn't match with a <img> or <video> element.
-  warn('"%s" does not point to a valid <img> or <video> element', src);
-}
-
-/**
- * Validates six images as a cubemap, either as selector or comma-separated
- * URLs.
- *
- * @param {string} src - A selector or comma-separated image URLs. Image URLs
-          must be wrapped by `url()`.
- * @param {string} src - A selector or comma-separated image URLs. Image URLs
-          must be wrapped by `url()`.
- */
-function validateCubemapSrc (src, cb) {
-  var aCubemap;
-  var cubemapSrcRegex = '';
-  var i;
-  var urls;
-  var validatedUrls = [];
-
-  for (i = 0; i < 6; i++) {
-    cubemapSrcRegex += 'url\((.+)\)\s*,\s*';
-  }
-  urls = src.match(cubemapSrcRegex);
-
-  // `src` is a comma-separated list of URLs.
-  // In this case, re-use validateSrc for each side of the cube.
-  function isImageCb (url) {
-    validatedUrls.push(url);
-    if (validatedUrls.length === 6) {
-      cb(validatedUrls);
-    }
-  }
-  if (urls) {
-    for (i = 1; i < 7; i++) {
-      validateSrc(urls[i], isImageCb);
-    }
-    return;
-  }
-
-  // `src` is a query selector to <a-cubemap> containing six $([src])s.
-  aCubemap = validateAndGetQuerySelector(src);
-  if (!aCubemap) { return; }
-  if (aCubemap.tagName === 'A-CUBEMAP' && aCubemap.srcs) {
-    return cb(aCubemap.srcs);
-  }
-  // Else if aCubeMap is not a <a-cubemap>.
-  warn('Selector "%s" does not point to <a-cubemap>', src);
-}
-
-/**
- * Parses src from `url(src)`.
- * @param  {string} src - String to parse.
- * @return {string} The parsed src, if parseable.
- */
-function parseUrl (src) {
-  var parsedSrc = src.match(/\url\((.+)\)/);
-  if (!parsedSrc) { return; }
-  return parsedSrc[1];
-}
-
-/**
- * Validate src is a valid image url
- * @param  {string} src - url that will be tested
- * @param  {function} onResult - callback with the test result
- */
-function validateImageUrl (src, onResult) {
-  var tester = new Image();
-  tester.addEventListener('load', onLoad);
-  function onLoad () { onResult(true); }
-  tester.addEventListener('error', onError);
-  function onError () { onResult(false); }
-  tester.src = src;
-}
-
-/**
- * Query and validate a query selector,
- *
- * @param  {string} selector - DOM selector.
- * @return {object|null|undefined} Selected DOM element if exists.
-           null if query yields no results.
-           undefined if `selector` is not a valid selector.
- */
-function validateAndGetQuerySelector (selector) {
-  try {
-    var el = document.querySelector(selector);
-    if (!el) {
-      warn('No element was found matching the selector: "%s"', selector);
-    }
-    return el;
-  } catch (e) {  // Capture exception if it's not a valid selector.
-    warn('"%s" is not a valid selector', selector);
-    return undefined;
-  }
-}
-
-module.exports = {
-  parseUrl: parseUrl,
-  validateSrc: validateSrc,
-  validateCubemapSrc: validateCubemapSrc
-};
-
-},{"./debug":12}],15:[function(require,module,exports){
+},{"three-dev":12}],7:[function(require,module,exports){
 
 /**
  * This is the web browser implementation of `debug()`.
@@ -7692,7 +6660,7 @@ function localstorage(){
   } catch (e) {}
 }
 
-},{"./debug":16}],16:[function(require,module,exports){
+},{"./debug":8}],8:[function(require,module,exports){
 
 /**
  * This is the common logic for both the Node.js and web browser
@@ -7891,7 +6859,7 @@ function coerce(val) {
   return val;
 }
 
-},{"ms":17}],17:[function(require,module,exports){
+},{"ms":9}],9:[function(require,module,exports){
 /**
  * Helpers.
  */
@@ -8018,7 +6986,7 @@ function plural(ms, n, name) {
   return Math.ceil(ms / n) + ' ' + name + 's';
 }
 
-},{}],18:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 /* eslint-disable no-unused-vars */
 'use strict';
 var hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -8059,100 +7027,7 @@ module.exports = Object.assign || function (target, source) {
 	return to;
 };
 
-},{}],19:[function(require,module,exports){
-// shim for using process in browser
-
-var process = module.exports = {};
-var queue = [];
-var draining = false;
-var currentQueue;
-var queueIndex = -1;
-
-function cleanUpNextTick() {
-    draining = false;
-    if (currentQueue.length) {
-        queue = currentQueue.concat(queue);
-    } else {
-        queueIndex = -1;
-    }
-    if (queue.length) {
-        drainQueue();
-    }
-}
-
-function drainQueue() {
-    if (draining) {
-        return;
-    }
-    var timeout = setTimeout(cleanUpNextTick);
-    draining = true;
-
-    var len = queue.length;
-    while(len) {
-        currentQueue = queue;
-        queue = [];
-        while (++queueIndex < len) {
-            if (currentQueue) {
-                currentQueue[queueIndex].run();
-            }
-        }
-        queueIndex = -1;
-        len = queue.length;
-    }
-    currentQueue = null;
-    draining = false;
-    clearTimeout(timeout);
-}
-
-process.nextTick = function (fun) {
-    var args = new Array(arguments.length - 1);
-    if (arguments.length > 1) {
-        for (var i = 1; i < arguments.length; i++) {
-            args[i - 1] = arguments[i];
-        }
-    }
-    queue.push(new Item(fun, args));
-    if (queue.length === 1 && !draining) {
-        setTimeout(drainQueue, 0);
-    }
-};
-
-// v8 likes predictible objects
-function Item(fun, array) {
-    this.fun = fun;
-    this.array = array;
-}
-Item.prototype.run = function () {
-    this.fun.apply(null, this.array);
-};
-process.title = 'browser';
-process.browser = true;
-process.env = {};
-process.argv = [];
-process.version = ''; // empty string to avoid regexp issues
-process.versions = {};
-
-function noop() {}
-
-process.on = noop;
-process.addListener = noop;
-process.once = noop;
-process.off = noop;
-process.removeListener = noop;
-process.removeAllListeners = noop;
-process.emit = noop;
-
-process.binding = function (name) {
-    throw new Error('process.binding is not supported');
-};
-
-process.cwd = function () { return '/' };
-process.chdir = function (dir) {
-    throw new Error('process.chdir is not supported');
-};
-process.umask = function() { return 0; };
-
-},{}],20:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 /*
 
 style-attr
@@ -8226,7 +7101,7 @@ module.exports.parse = parse;
 module.exports.stringify = stringify;
 module.exports.normalize = normalize;
 
-},{}],21:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 // File:src/Three.js
 
 /**
@@ -47615,4 +46490,1129 @@ THREE.MorphBlendMesh.prototype.update = function ( delta ) {
 };
 
 
-},{}]},{},[1]);
+},{}],13:[function(require,module,exports){
+var debug = require('../utils/debug');
+var styleParser = require('style-attr');
+var utils = require('../utils/');
+
+var components = module.exports.components = {};  // Keep track of registered components.
+var error = debug('core:register-component:error');
+
+/**
+ * Component class definition.
+ *
+ * Components configure appearance, modify behavior, or add functionality to
+ * entities. The behavior and appearance of an entity can be changed at runtime
+ * by adding, removing, or updating components. Entities do not share instances
+ * of components.
+ *
+ * @namespace Component
+ * @property {object} data - Stores component data, populated by parsing the
+ *           attribute name of the component plus applying defaults and mixins.
+ * @property {object} el - Reference to the entity element.
+ * @property {string} name - Name of the attribute the component is connected
+ *           to.
+ * @member {Element} el
+ * @member {object} data
+ * @member {function} getData
+ * @member {function} init
+ * @member {function} update
+ * @member {function} remove
+ * @member {function} parse
+ * @member {function} stringify
+ */
+var Component = module.exports.Component = function (el) {
+  var attrs = el.getAttribute(this.name);
+  this.el = el;
+  this.data = {};
+  this.parseAttributes(attrs);
+  this.init();
+  this.update();
+};
+
+Component.prototype = {
+  /**
+   * Contains the type schema and defaults for the data values.
+   * Data is coerced into the types of the values of the defaults.
+   */
+  schema: {},
+
+  /**
+   * Init handler. Similar to attachedCallback.
+   * Called during component initialization and is only run once.
+   * Components can use this to set initial state.
+   */
+  init: function () { /* no-op */ },
+
+  /**
+   * Update handler. Similar to attributeChangedCallback.
+   * Called whenever component's data changes.
+   * Also called on component initialization when the component receives initial data.
+   *
+   * @param {object} previousData - Previous attributes of the component.
+   */
+  update: function (previousData) { /* no-op */ },
+
+  /**
+   * Remove handler. Similar to detachedCallback.
+   * Called whenever component is removed from the entity (i.e., removeAttribute).
+   * Components can use this to reset behavior on the entity.
+   */
+  remove: function () { /* no-op */ },
+
+  /**
+   * Describes how the component should deserialize HTML attribute into data.
+   * Can be overridden by the component.
+   *
+   * The default parsing is parsing style-like strings, camelCasing keys for
+   * error-tolerance (`max-value` ~= `maxValue`).
+   *
+   * @param {string} value - HTML attribute.
+   * @returns {object} Data.
+   */
+  parse: function (value) {
+    if (typeof value !== 'string') { return value; }
+    return transformKeysToCamelCase(styleParser.parse(value));
+  },
+
+  /**
+   * Describes how the component should serialize data to a string to update the DOM.
+   * Can be overridden by the component.
+   *
+   * The default stringify is to a style-like string.
+   *
+   * @param {object} data
+   * @returns {string}
+   */
+  stringify: function (data) {
+    if (typeof data !== 'object') { return data; }
+    return styleParser.stringify(data);
+  },
+
+  /**
+   * Returns a copy of data such that we don't expose the private this.data.
+   *
+   * @returns {object} data
+   */
+  getData: function () {
+    var data = this.data;
+    if (typeof data !== 'object') { return data; }
+    return utils.extend({}, data);
+  },
+
+  /**
+   * Called when new data is coming from the entity (e.g., attributeChangedCb)
+   * or from its mixins. Does some parsing and applying before updating the
+   * component.
+   * Does not update if data has not changed.
+   */
+  updateAttributes: function (newData) {
+    var previousData = extendWithCheck({}, this.data);
+    this.parseAttributes(newData);
+    // Don't update if properties haven't changed
+    if (utils.deepEqual(previousData, this.data)) { return; }
+    this.update(previousData);
+    this.el.emit('componentchanged', {
+      name: this.name,
+      newData: this.getData(),
+      oldData: previousData
+    });
+  },
+
+  /**
+   * Builds component data from the current state of the entity, ultimately
+   * updating this.data.
+   *
+   * If the component was detached completely, set data to null.
+   *
+   * Precedence:
+   * 1. Defaults data
+   * 2. Mixin data.
+   * 3. Attribute data.
+   * Finally coerce the data to the types of the defaults.
+   */
+  parseAttributes: function (newData) {
+    var self = this;
+    var data = {};
+    var schema = self.schema;
+    var el = self.el;
+    var mixinEls = el.mixinEls;
+    var name = self.name;
+
+    // 1. Default values (lowest precendence).
+    Object.keys(schema).forEach(applyDefault);
+    function applyDefault (key) {
+      data[key] = schema[key].default;
+    }
+
+    // 2. Mixin values.
+    mixinEls.forEach(applyMixin);
+    function applyMixin (mixinEl) {
+      var mixinData = mixinEl.getAttribute(name);
+      data = extendWithCheck(data, mixinData);
+    }
+
+    // 3. Attribute values (highest precendence).
+    data = extendWithCheck(data, newData);
+
+    // Coerce to the type of the defaults.
+    this.data = utils.coerce(data, schema);
+  }
+};
+
+/**
+ * Registers a component to A-Frame.
+ *
+ * @param {string} name - Component name.
+ * @param {object} definition - Component property and methods.
+ * @returns {object} Component.
+ */
+module.exports.registerComponent = function (name, definition) {
+  var NewComponent;
+  var proto = {};
+
+  // Format definition object to prototype object.
+  Object.keys(definition).forEach(function (key) {
+    proto[key] = {
+      value: definition[key],
+      writable: window.debug
+    };
+  });
+
+  if (components[name]) {
+    error('The component "' + name + '" has been already registered');
+  }
+  NewComponent = function (el) {
+    Component.call(this, el);
+  };
+  NewComponent.prototype = Object.create(Component.prototype, proto);
+  NewComponent.prototype.name = name;
+  NewComponent.prototype.constructor = NewComponent;
+  components[name] = {
+    Component: NewComponent,
+    dependencies: NewComponent.prototype.dependencies,
+    parse: NewComponent.prototype.parse.bind(NewComponent.prototype),
+    schema: NewComponent.prototype.schema,
+    stringify: NewComponent.prototype.stringify.bind(NewComponent.prototype)
+  };
+  return NewComponent;
+};
+
+/**
+* Object extending, but checks if `source` is an object first.
+* If not, `source` is a primitive and we don't do any extending.
+*
+* @param dest - Destination object or value.
+* @param source - Source object or value
+* @returns Overridden object or value.
+*/
+function extendWithCheck (dest, source) {
+  var isSourceObject = typeof source === 'object';
+  if (source === null) { return dest; }
+  if (!isSourceObject) {
+    if (source === undefined) { return dest; }
+    return source;
+  }
+  return utils.extend(dest, source);
+}
+
+/**
+ * Converts string from hyphen to camelCase.
+ *
+ * @param {string} str - String to camelCase.
+ * @return {string} CamelCased string.
+ */
+function toCamelCase (str) {
+  return str.replace(/-([a-z])/g, camelCase);
+  function camelCase (g) { return g[1].toUpperCase(); }
+}
+
+/**
+ * Converts object's keys from hyphens to camelCase (e.g., `max-value` to
+ * `maxValue`).
+ *
+ * @param {object} obj - The object to camelCase keys.
+ * @return {object} The object with keys camelCased.
+ */
+function transformKeysToCamelCase (obj) {
+  var keys = Object.keys(obj);
+  var camelCaseObj = {};
+  keys.forEach(function (key) {
+    var camelCaseKey = toCamelCase(key);
+    camelCaseObj[camelCaseKey] = obj[key];
+  });
+  return camelCaseObj;
+}
+
+},{"../utils/":17,"../utils/debug":16,"style-attr":11}],14:[function(require,module,exports){
+var coordinates = require('./coordinates');
+var utils = require('./index');
+
+/**
+ * If `value` is object, coerce values of `val` into types defined by `schema`.
+ * If `value` is string and `schemaAttr` defined, coerces `value` into the value in `schema`
+ * pointed to by `schemaAttr`.
+ *
+ * @param {object|string} value - value(s) to coerce.
+ * @param {object} schema - Object which values will be used to coerce to.
+ * @param {string} schemaAttr -
+ *   In case `value` is a string, `schemaAttr` signifies which value in `schema` to coerce to.
+ * @returns Coerced value or object.
+ */
+module.exports = function (value, schema, schemaAttr) {
+  var obj = value;
+
+  // Batch coerce.
+  if (typeof value === 'object') {
+    Object.keys(obj).forEach(function (key) {
+      var attrSchema = schema[key];
+      var schemaValue;
+      if (!attrSchema) {
+        utils.warn('Unknown component attribute: ' + key);
+        return;
+      }
+      schemaValue = attrSchema.default;
+      if (schemaValue === undefined) { return; }
+      obj[key] = coerceValue(obj[key], schemaValue);
+    });
+    return obj;
+  }
+
+  // Handle case: string.
+  return coerceValue(value, schema.default);
+
+  function coerceValue (value, targetValue) {
+    if (typeof value !== 'string') { return value; }
+
+    switch (typeof targetValue) {
+      case 'boolean':
+        return value === 'true';
+      case 'number':
+        return parseFloat(value);
+      case 'object':
+        if (utils.deepEqual(Object.keys(targetValue), ['x', 'y', 'z'])) {
+          return coordinates.parse(value);
+        }
+        return value;
+      default:
+        return value;
+    }
+  }
+};
+
+},{"./coordinates":15,"./index":17}],15:[function(require,module,exports){
+// Coordinate string regex. Handles negative, positive, and decimals.
+var regex = /\s*(-?\d*\.{0,1}\d+)\s*(-?\d*\.{0,1}\d+)\s*(-?\d*\.{0,1}\d+)\s*/;
+module.exports.regex = regex;
+
+/**
+ * Parses coordinates from an "x y z" string.
+ * Example: "3 10 -5" to {x: 3, y: 10, z: -5}.
+ *
+ * @param {string} val - An "x y z" string.
+ * @param {string} defaults - fallback value.
+ * @returns {object} An object with keys [x, y, z].
+ */
+function parse (value, schema) {
+  var coordinate;
+  schema = schema || {};
+  if (typeof value !== 'string' || value === null) { return value; }
+  coordinate = value.trim().replace(/\s+/g, ' ').split(' ');
+  return {
+    x: parseFloat(coordinate[0] || schema.x.default),
+    y: parseFloat(coordinate[1] || schema.y.default),
+    z: parseFloat(coordinate[2] || schema.z.default)
+  };
+}
+module.exports.parse = parse;
+
+/**
+ * Stringifies coordinates from an object with keys [x y z].
+ * Example: {x: 3, y: 10, z: -5} to "3 10 -5".
+ *
+ * @param {object|string} val - An object with keys [x y z].
+ * @returns {string} An "x y z" string.
+ */
+function stringify (value) {
+  if (typeof value !== 'object') { return value; }
+  return [value.x, value.y, value.z].join(' ');
+}
+module.exports.stringify = stringify;
+
+/**
+ * @returns {bool}
+ */
+module.exports.isCoordinate = function (value) {
+  return regex.test(value);
+};
+
+/**
+ * Prototype mixin for coordinate-only components.
+ */
+module.exports.componentMixin = {
+  parse: function (value) {
+    return parse(value, this.schema);
+  },
+
+  stringify: stringify
+};
+
+},{}],16:[function(require,module,exports){
+(function (process){
+var debugLib = require('debug');
+var extend = require('object-assign');
+
+var settings = {
+  colors: {
+    error: 'red',
+    info: 'gray',
+    warn: 'orange',
+    warning: 'orange'
+  }
+};
+
+/**
+ * Monkeypatches `debug` so we can colorize error/warning messages.
+ *
+ * (See issue: https://github.com/visionmedia/debug/issues/137)
+ */
+var debug = function (namespace) {
+  var d = debugLib(namespace);
+
+  d.color = getDebugNamespaceColor(namespace);
+
+  return d;
+};
+extend(debug, debugLib);
+
+/**
+ * Returns the type of the namespace (e.g., `error`, `warn`).
+ *
+ * @param {String} namespace
+ *   The debug logger's namespace (e.g., `components:geometry:warn`).
+ * @returns {String} The type of the namespace (e.g., `warn`).
+ * @api private
+ */
+function getDebugNamespaceType (namespace) {
+  var chunks = namespace.split(':');
+
+  return chunks[chunks.length - 1];  // Return the last one
+}
+
+/**
+ * Returns the color of the namespace (e.g., `orange`).
+ *
+ * @param {String} namespace
+ *   The debug logger's namespace (e.g., `components:geometry:warn`).
+ * @returns {String} The color of the namespace (e.g., `orange`).
+ * @api private
+ */
+function getDebugNamespaceColor (namespace) {
+  var type = getDebugNamespaceType(namespace);
+
+  var color = settings.colors && settings.colors[type];
+
+  return color || null;
+}
+
+/**
+ * Returns `localStorage` if possible.
+ *
+ * This is necessary because Safari throws when a user disables
+ * cookies or `localStorage` and you attempt to access it.
+ *
+ * @returns {localStorage}
+ * @api private
+ */
+function storage () {
+  try {
+    return window.localStorage;
+  } catch (e) {
+  }
+}
+
+/**
+ * To enable console logging, type this in the Console of your Dev Tools:
+ *
+ *   localStorage.logs = 1
+ *
+ * To disable console logging:
+ *
+ *   localStorage.logs = 0
+ *
+ */
+var ls = storage();
+if (ls && (parseInt(ls.logs, 10) || ls.logs === 'true')) {
+  debug.enable('*');
+} else {
+  // We do not call `debug.disable` because it requires two reloads to take.
+  // See https://github.com/visionmedia/debug/issues/238
+  // Instead, we call `debug.save` to remove the `debug` namespaces persisted
+  // in `localStorage`.
+  debug.save(null);
+  // And then we `noop` the function so nothing happens.
+  debug = function () {
+    /* noop */
+    return function () {};
+  };
+}
+
+if (process.browser) { window.logs = debug; }
+
+module.exports = debug;
+
+}).call(this,require('_process'))
+},{"_process":21,"debug":7,"object-assign":10}],17:[function(require,module,exports){
+/* global CustomEvent, location */
+/* Centralized place to reference utilities since utils is exposed to the user. */
+var objectAssign = require('object-assign');
+
+module.exports.coerce = require('./coerce');
+module.exports.coordinates = require('./coordinates');
+
+/**
+ * Fires a custom DOM event.
+ *
+ * @param {Element} el Element on which to fire the event.
+ * @param {String} name Name of the event.
+ * @param {Object=} [data={bubbles: true, {detail: <el>}}]
+ *   Data to pass as `customEventInit` to the event.
+ */
+module.exports.fireEvent = function (el, name, data) {
+  data = data || {};
+  data.detail = data.detail || {};
+  data.detail.target = data.detail.target || el;
+  var evt = new CustomEvent(name, data);
+  evt.target = el;
+  el.dispatchEvent(evt);
+};
+
+/**
+ * Throws an error given a message.
+ *
+ * @param {String} msg Error message.
+ */
+module.exports.error = function (msg) {
+  throw new Error(msg);
+};
+
+/**
+ * Emits a console warning given passed message argument(s).
+ */
+module.exports.warn = function () {
+  console.warn.apply(console, arguments);
+};
+
+/**
+ * Emits a console log given passed message argument(s).
+ */
+module.exports.log = function () {
+  console.log.apply(console, arguments);
+};
+
+/**
+ * Mix the properties of source object(s) into a destination object.
+ *
+ * @param  {object} dest - The object to which properties will be copied.
+ * @param  {...object} source - The object(s) from which properties will be copied.
+ */
+module.exports.extend = objectAssign;
+
+/**
+ * Checks if two objects have the same attributes and values, including nested objects.
+ *
+ * @param {object} a - First object.
+ * @param {object} b - Second object.
+ * @returns {boolean} Whether two objects are deeply equal.
+ */
+function deepEqual (a, b) {
+  var keysA = Object.keys(a);
+  var keysB = Object.keys(b);
+  var i;
+  if (keysA.length !== keysB.length) { return false; }
+  // If there are no keys, compare the objects.
+  if (keysA.length === 0) { return a === b; }
+  for (i = 0; i < keysA.length; ++i) {
+    if (a[keysA[i]] !== b[keysA[i]]) { return false; }
+  }
+  return true;
+}
+module.exports.deepEqual = deepEqual;
+
+/**
+ * Computes the difference between two objects.
+ *
+ * @param {object} a - First object to compare (e.g., oldData).
+ * @param {object} b - Second object to compare (e.g., newData).
+ * @returns {object}
+ *   Difference object where set of keys note which values were not equal, and values are
+ *   `b`'s values.
+ */
+module.exports.diff = function (a, b) {
+  var diff = {};
+  var keys = Object.keys(a);
+  Object.keys(b).forEach(function collectKeys (bKey) {
+    if (keys.indexOf(bKey) === -1) {
+      keys.push(bKey);
+    }
+  });
+  keys.forEach(function doDiff (key) {
+    var aVal = a[key];
+    var bVal = b[key];
+    var isComparingObjects = aVal && bVal &&
+                             aVal.constructor === Object && bVal.constructor === Object;
+    if ((isComparingObjects && !deepEqual(aVal, bVal)) ||
+        (!isComparingObjects && aVal !== bVal)) {
+      diff[key] = bVal;
+    }
+  });
+  return diff;
+};
+
+/**
+ * Checks if browser is mobile.
+ * @return {Boolean} True if mobile browser detected.
+ */
+module.exports.isMobile = function () {
+  var check = false;
+  (function (a) {
+    if (/(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino/i.test(a) || /1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s\-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|\-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw\-(n|u)|c55\/|capi|ccwa|cdm\-|cell|chtm|cldc|cmd\-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc\-s|devi|dica|dmob|do(c|p)o|ds(12|\-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(\-|_)|g1 u|g560|gene|gf\-5|g\-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd\-(m|p|t)|hei\-|hi(pt|ta)|hp( i|ip)|hs\-c|ht(c(\-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i\-(20|go|ma)|i230|iac( |\-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc\-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|\-[a-w])|libw|lynx|m1\-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m\-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(\-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)\-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|\-([1-8]|c))|phil|pire|pl(ay|uc)|pn\-2|po(ck|rt|se)|prox|psio|pt\-g|qa\-a|qc(07|12|21|32|60|\-[2-7]|i\-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h\-|oo|p\-)|sdk\/|se(c(\-|0|1)|47|mc|nd|ri)|sgh\-|shar|sie(\-|m)|sk\-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h\-|v\-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl\-|tdg\-|tel(i|m)|tim\-|t\-mo|to(pl|sh)|ts(70|m\-|m3|m5)|tx\-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|\-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(\-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas\-|your|zeto|zte\-/i.test(a.substr(0, 4))) {
+      check = true;
+    }
+    if (isIOS()) {
+      check = true;
+    }
+  })(navigator.userAgent || navigator.vendor || window.opera);
+  return check;
+};
+
+var isIOS = module.exports.isIOS = function () {
+  return /iPad|iPhone|iPod/.test(navigator.platform);
+};
+
+/**
+ * Checks mobile device orientation
+ * @return {Boolean} True if landscape orientation
+ */
+module.exports.isLandscape = function () {
+  return window.orientation === 90 || window.orientation === -90;
+};
+
+/**
+ * Splits a string into an array based on a delimiter.
+ *
+ * @param   {string=} [str='']        Source string
+ * @param   {string=} [delimiter=' '] Delimiter to use
+ * @returns {array}                   Array of delimited strings
+ */
+module.exports.splitString = function (str, delimiter) {
+  if (typeof delimiter === 'undefined') { delimiter = ' '; }
+  // First collapse the whitespace (or whatever the delimiter is).
+  var regex = new RegExp(delimiter, 'g');
+  str = (str || '').replace(regex, delimiter);
+  // Then split.
+  return str.split(delimiter);
+};
+
+/**
+ * Extracts data from the element given an object that contains expected keys.
+ *
+ * @param {Element} Source element.
+ * @param {Object} [defaults={}] Object of default key-value pairs.
+ * @returns {Object}
+ */
+module.exports.getElData = function (el, defaults) {
+  defaults = defaults || {};
+  var data = {};
+  Object.keys(defaults).forEach(copyAttribute);
+  function copyAttribute (key) {
+    if (el.hasAttribute(key)) {
+      data[key] = el.getAttribute(key);
+    }
+  }
+  return data;
+};
+
+/**
+ * Retrieves querystring value.
+ * @param  {String} name Name of querystring key.
+ * @return {String}      Value
+ */
+module.exports.getUrlParameter = function (name) {
+  name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+  var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+  var results = regex.exec(location.search);
+  return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+};
+
+// Must be at bottom to avoid circular dependency.
+module.exports.srcLoader = require('./src-loader');
+
+},{"./coerce":14,"./coordinates":15,"./src-loader":18,"object-assign":10}],18:[function(require,module,exports){
+/* global Image */
+var debug = require('./debug');
+
+var warn = debug('utils:src-loader:warn');
+
+/**
+ * Validates a texture, either as a selector or as a URL.
+ * Detects whether `src` is pointing to an image or to a video, and invokes the
+ * appropriate callback.
+ *
+ * If `src` is selector, check if it's valid, return the el in the callback.
+ * An el is returned so that it can be reused for texture loading.
+ *
+ * If `src` is a URL, check if it's valid, return the src in the callback.
+ *
+ * @params {string} src - A selector or a URL. URLs must be wrapped by `url()`.
+ * @params {function} isImageCb - callback if texture is an image.
+ * @params {function} isVideoCb - callback if texture is a video.
+ */
+function validateSrc (src, isImageCb, isVideoCb) {
+  var textureEl;
+  var isImage;
+  var isVideo;
+  var url = parseUrl(src);
+
+  // src is a url.
+  if (url) {
+    validateImageUrl(url, function isAnImageUrl (isImage) {
+      if (!isImage) { isVideoCb(url); return; }
+      isImageCb(url);
+    });
+    return;
+  }
+
+  // src is a query selector.
+  textureEl = validateAndGetQuerySelector(src);
+  if (!textureEl) { return; }
+  isImage = textureEl && textureEl.tagName === 'IMG';
+  isVideo = textureEl && textureEl.tagName === 'VIDEO';
+  if (isImage) { return isImageCb(textureEl); }
+  if (isVideo) { return isVideoCb(textureEl); }
+
+  // src is a valid selector but doesn't match with a <img> or <video> element.
+  warn('"%s" does not point to a valid <img> or <video> element', src);
+}
+
+/**
+ * Validates six images as a cubemap, either as selector or comma-separated
+ * URLs.
+ *
+ * @param {string} src - A selector or comma-separated image URLs. Image URLs
+          must be wrapped by `url()`.
+ * @param {string} src - A selector or comma-separated image URLs. Image URLs
+          must be wrapped by `url()`.
+ */
+function validateCubemapSrc (src, cb) {
+  var aCubemap;
+  var cubemapSrcRegex = '';
+  var i;
+  var urls;
+  var validatedUrls = [];
+
+  for (i = 0; i < 6; i++) {
+    cubemapSrcRegex += 'url\((.+)\)\s*,\s*';
+  }
+  urls = src.match(cubemapSrcRegex);
+
+  // `src` is a comma-separated list of URLs.
+  // In this case, re-use validateSrc for each side of the cube.
+  function isImageCb (url) {
+    validatedUrls.push(url);
+    if (validatedUrls.length === 6) {
+      cb(validatedUrls);
+    }
+  }
+  if (urls) {
+    for (i = 1; i < 7; i++) {
+      validateSrc(urls[i], isImageCb);
+    }
+    return;
+  }
+
+  // `src` is a query selector to <a-cubemap> containing six $([src])s.
+  aCubemap = validateAndGetQuerySelector(src);
+  if (!aCubemap) { return; }
+  if (aCubemap.tagName === 'A-CUBEMAP' && aCubemap.srcs) {
+    return cb(aCubemap.srcs);
+  }
+  // Else if aCubeMap is not a <a-cubemap>.
+  warn('Selector "%s" does not point to <a-cubemap>', src);
+}
+
+/**
+ * Parses src from `url(src)`.
+ * @param  {string} src - String to parse.
+ * @return {string} The parsed src, if parseable.
+ */
+function parseUrl (src) {
+  var parsedSrc = src.match(/\url\((.+)\)/);
+  if (!parsedSrc) { return; }
+  return parsedSrc[1];
+}
+
+/**
+ * Validate src is a valid image url
+ * @param  {string} src - url that will be tested
+ * @param  {function} onResult - callback with the test result
+ */
+function validateImageUrl (src, onResult) {
+  var tester = new Image();
+  tester.addEventListener('load', onLoad);
+  function onLoad () { onResult(true); }
+  tester.addEventListener('error', onError);
+  function onError () { onResult(false); }
+  tester.src = src;
+}
+
+/**
+ * Query and validate a query selector,
+ *
+ * @param  {string} selector - DOM selector.
+ * @return {object|null|undefined} Selected DOM element if exists.
+           null if query yields no results.
+           undefined if `selector` is not a valid selector.
+ */
+function validateAndGetQuerySelector (selector) {
+  try {
+    var el = document.querySelector(selector);
+    if (!el) {
+      warn('No element was found matching the selector: "%s"', selector);
+    }
+    return el;
+  } catch (e) {  // Capture exception if it's not a valid selector.
+    warn('"%s" is not a valid selector', selector);
+    return undefined;
+  }
+}
+
+module.exports = {
+  parseUrl: parseUrl,
+  validateSrc: validateSrc,
+  validateCubemapSrc: validateCubemapSrc
+};
+
+},{"./debug":16}],19:[function(require,module,exports){
+// Browser distribution of the A-Frame component.
+(function () {
+  if (typeof AFRAME === 'undefined') {
+    console.error('Component attempted to register before AFRAME was available.');
+    return;
+  }
+
+  // Register all components here.
+  var components = {
+    "no-click-look-controls": require('./index').component
+  };
+
+  Object.keys(components).forEach(function (name) {
+    if (AFRAME.aframeCore) {
+      AFRAME.aframeCore.registerComponent(name, components[name]);
+    } else {
+      AFRAME.registerComponent(name, components[name]);
+    }
+  });
+})();
+
+},{"./index":20}],20:[function(require,module,exports){
+var registerComponent = require('../aframe-core/src/core/component').registerComponent;
+var THREE = require('./../aframe-core/lib/three');
+
+// To avoid recalculation at every mouse movement tick
+var PI_2 = Math.PI / 2;
+
+module.exports.component = {
+  dependencies: ['position', 'rotation'],
+  schema: {
+    enabled: { default: true },
+    maxpitch: {default: PI_2},
+    maxyaw: {default: PI_2 * 6},
+  },
+
+  /**
+   * Called once when component is attached. Generally for initial setup.
+   */
+  init: function () {
+    var scene = this.el.sceneEl;
+    this.setupMouseControls();
+    this.setupHMDControls();
+    this.attachEventListeners();
+    scene.addBehavior(this);
+    this.previousPosition = new THREE.Vector3();
+    this.deltaPosition = new THREE.Vector3();
+  },
+
+  setupMouseControls: function () {
+    this.canvasEl = document.querySelector('a-scene').canvas;
+    // The canvas where the scene is painted
+    this.hovering = false;
+    this.pitchObject = new THREE.Object3D();
+    this.yawObject = new THREE.Object3D();
+    this.yawObject.position.y = 10;
+    this.yawObject.add(this.pitchObject);
+  },
+
+  setupHMDControls: function () {
+    this.dolly = new THREE.Object3D();
+    this.euler = new THREE.Euler();
+    this.controls = new THREE.VRControls(this.dolly);
+    this.zeroQuaternion = new THREE.Quaternion();
+  },
+
+  attachEventListeners: function () {
+    var canvasEl = document.querySelector('a-scene').canvas;
+
+    // Mouse Events
+    canvasEl.addEventListener('mousemove', this.onMouseMove.bind(this), true);
+    canvasEl.addEventListener('mouseout', this.onMouseOut.bind(this), true);
+    canvasEl.addEventListener('mouseover', this.onMouseOver.bind(this), true);
+    // Touch events
+    canvasEl.addEventListener('touchstart', this.onTouchStart.bind(this));
+    canvasEl.addEventListener('touchmove', this.onTouchMove.bind(this));
+    canvasEl.addEventListener('touchend', this.onTouchEnd.bind(this));
+  },
+
+  update: function () {
+    if (!this.data.enabled) { return; }
+    this.controls.update();
+    this.updateOrientation();
+    this.updatePosition();
+  },
+
+  updateOrientation: (function () {
+    var hmdEuler = new THREE.Euler();
+    hmdEuler.order = 'YXZ';
+    return function () {
+      var pitchObject = this.pitchObject;
+      var yawObject = this.yawObject;
+      var hmdQuaternion = this.calculateHMDQuaternion();
+      hmdEuler.setFromQuaternion(hmdQuaternion);
+      this.el.setAttribute('rotation', {
+        x: THREE.Math.radToDeg(hmdEuler.x) + THREE.Math.radToDeg(pitchObject.rotation.x),
+        y: THREE.Math.radToDeg(hmdEuler.y) + THREE.Math.radToDeg(yawObject.rotation.y),
+        z: THREE.Math.radToDeg(hmdEuler.z)
+      });
+    };
+  })(),
+
+  calculateHMDQuaternion: (function () {
+    var hmdQuaternion = new THREE.Quaternion();
+    return function () {
+      var dolly = this.dolly;
+      if (!this.zeroed && !dolly.quaternion.equals(this.zeroQuaternion)) {
+        this.zeroOrientation();
+        this.zeroed = true;
+      }
+      hmdQuaternion.copy(this.zeroQuaternion).multiply(dolly.quaternion);
+      return hmdQuaternion;
+    };
+  })(),
+
+  updatePosition: (function () {
+    var position = new THREE.Vector3();
+    var quaternion = new THREE.Quaternion();
+    var scale = new THREE.Vector3();
+    return function () {
+      var el = this.el;
+      var deltaPosition = this.calculateDeltaPosition();
+      var currentPosition = el.getComputedAttribute('position');
+      this.el.object3D.matrixWorld.decompose(position, quaternion, scale);
+      deltaPosition.applyQuaternion(quaternion);
+      el.setAttribute('position', {
+        x: currentPosition.x + deltaPosition.x,
+        y: currentPosition.y + deltaPosition.y,
+        z: currentPosition.z + deltaPosition.z
+      });
+    };
+  })(),
+
+  calculateDeltaPosition: function () {
+    var dolly = this.dolly;
+    var deltaPosition = this.deltaPosition;
+    var previousPosition = this.previousPosition;
+    deltaPosition.copy(dolly.position);
+    deltaPosition.sub(previousPosition);
+    previousPosition.copy(dolly.position);
+    return deltaPosition;
+  },
+
+  updateHMDQuaternion: (function () {
+    var hmdQuaternion = new THREE.Quaternion();
+    return function () {
+      var dolly = this.dolly;
+      this.controls.update();
+      if (!this.zeroed && !dolly.quaternion.equals(this.zeroQuaternion)) {
+        this.zeroOrientation();
+        this.zeroed = true;
+      }
+      hmdQuaternion.copy(this.zeroQuaternion).multiply(dolly.quaternion);
+      return hmdQuaternion;
+    };
+  })(),
+
+  zeroOrientation: function () {
+    var euler = new THREE.Euler();
+    euler.setFromQuaternion(this.dolly.quaternion.clone().inverse());
+    // Cancel out roll and pitch. We want to only reset yaw
+    euler.z = 0;
+    euler.x = 0;
+    this.zeroQuaternion.setFromEuler(euler);
+  },
+
+  getMousePosition: function(event, canvasEl) {
+
+    var rect = canvasEl.getBoundingClientRect();
+
+    // Returns a value from -1 to 1 for X and Y representing the percentage of the max-yaw and max-pitch from the center of the canvas
+    // -1 is far left or top, 1 is far right or bottom
+    return {x: -2*(.5 - (event.clientX - rect.left)/rect.width), y: -2*(.5 - (event.clientY - rect.top)/rect.height)};
+  },
+
+  onMouseMove: function (event) {
+    var pos = this.getMousePosition(event, this.canvasEl);
+    var x = pos.x;
+    var y = pos.y;
+
+    var pitchObject = this.pitchObject;
+    var yawObject = this.yawObject;
+
+    if (!this.hovering || !this.data.enabled) { return; }
+    yawObject.rotation.y = this.data.maxyaw * -x;
+    pitchObject.rotation.x = this.data.maxpitch * -y;
+  },
+
+  onMouseOver: function (event) {
+    this.hovering = true;
+  },
+
+  onMouseOut: function (event) {
+    this.hovering = false;
+  },
+
+  onTouchStart: function (e) {
+    if (e.touches.length !== 1) { return; }
+    this.touchStart = {
+      x: e.touches[0].pageX,
+      y: e.touches[0].pageY
+    };
+    this.touchStarted = true;
+  },
+
+  onTouchMove: function (e) {
+    var deltaY;
+    var yawObject = this.yawObject;
+    if (!this.touchStarted) { return; }
+    deltaY = 2 * Math.PI * (e.touches[0].pageX - this.touchStart.x) / this.canvasEl.clientWidth;
+    // Limits touch orientaion to to yaw (y axis)
+    yawObject.rotation.y -= deltaY * 0.5;
+    this.touchStart = {
+      x: e.touches[0].pageX,
+      y: e.touches[0].pageY
+    };
+  },
+
+  onTouchEnd: function () {
+    this.touchStarted = false;
+  },
+  /**
+   * Called when a component is removed (e.g., via removeAttribute).
+   * Generally undoes all modifications to the entity.
+   */
+  remove: function () { }
+};
+
+},{"../aframe-core/src/core/component":13,"./../aframe-core/lib/three":1}],21:[function(require,module,exports){
+// shim for using process in browser
+
+var process = module.exports = {};
+var queue = [];
+var draining = false;
+var currentQueue;
+var queueIndex = -1;
+
+function cleanUpNextTick() {
+    draining = false;
+    if (currentQueue.length) {
+        queue = currentQueue.concat(queue);
+    } else {
+        queueIndex = -1;
+    }
+    if (queue.length) {
+        drainQueue();
+    }
+}
+
+function drainQueue() {
+    if (draining) {
+        return;
+    }
+    var timeout = setTimeout(cleanUpNextTick);
+    draining = true;
+
+    var len = queue.length;
+    while(len) {
+        currentQueue = queue;
+        queue = [];
+        while (++queueIndex < len) {
+            if (currentQueue) {
+                currentQueue[queueIndex].run();
+            }
+        }
+        queueIndex = -1;
+        len = queue.length;
+    }
+    currentQueue = null;
+    draining = false;
+    clearTimeout(timeout);
+}
+
+process.nextTick = function (fun) {
+    var args = new Array(arguments.length - 1);
+    if (arguments.length > 1) {
+        for (var i = 1; i < arguments.length; i++) {
+            args[i - 1] = arguments[i];
+        }
+    }
+    queue.push(new Item(fun, args));
+    if (queue.length === 1 && !draining) {
+        setTimeout(drainQueue, 0);
+    }
+};
+
+// v8 likes predictible objects
+function Item(fun, array) {
+    this.fun = fun;
+    this.array = array;
+}
+Item.prototype.run = function () {
+    this.fun.apply(null, this.array);
+};
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+process.version = ''; // empty string to avoid regexp issues
+process.versions = {};
+
+function noop() {}
+
+process.on = noop;
+process.addListener = noop;
+process.once = noop;
+process.off = noop;
+process.removeListener = noop;
+process.removeAllListeners = noop;
+process.emit = noop;
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+};
+
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
+process.umask = function() { return 0; };
+
+},{}]},{},[19]);

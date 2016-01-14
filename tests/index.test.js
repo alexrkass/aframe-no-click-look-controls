@@ -1,10 +1,10 @@
 var Aframe = require('aframe-core');
-var example = require('../index.js').component;
+var noClickLookControls = require('../index.js').component;
 var entityFactory = require('./helpers').entityFactory;
 
-Aframe.registerComponent('example', example);
+Aframe.registerComponent('no-click-look-controls', noClickLookControls);
 
-describe('example', function () {
+describe('no-click-look-controls', function () {
   beforeEach(function (done) {
     this.el = entityFactory();
     this.el.addEventListener('loaded', function () {
@@ -12,7 +12,7 @@ describe('example', function () {
     });
   });
 
-  describe('example property', function () {
+  describe('no-click-look-controls', function () {
     it('is good', function () {
       assert.equal(1, 1);
     });
