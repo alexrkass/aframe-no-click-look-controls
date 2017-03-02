@@ -1,3 +1,5 @@
+#BROKEN DUE TO NEW VERSION OF A-FRAME!
+
 # A-Frame `no-click-look-controls` Component
 
 ##Overview
